@@ -12,7 +12,13 @@ name = 'Towfik Serial Platform'
 manifest = root / 'AndroidManifest.xml'
 ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
 tree = ET.parse(manifest)
-application = tree.getroot().find('application')
+manifest_root = tree.getroot()
+# The compiled app checks the server's app_version_min setting on launch.
+# Advertise a version newer than the original package so ordinary minimum-version
+# comparisons do not immediately redirect users to the original Play Store entry.
+manifest_root.set('{http://schemas.android.com/apk/res/android}versionCode', '9990000')
+manifest_root.set('{http://schemas.android.com/apk/res/android}versionName', '999.0.0')
+application = manifest_root.find('application')
 if application is None:
     raise RuntimeError('No application in decoded manifest')
 application.set('{http://schemas.android.com/apk/res/android}label', name)
