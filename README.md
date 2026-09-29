@@ -1,9 +1,11 @@
 # Towfik Serial Platform
 
-This is a **new native Android app**, not a modification of the old compiled Flutter APK. It opens directly to a new dark-themed dashboard with Home, Discover, Watchlist and About screens. There is no Play Store redirect, forced-update code, old `libapp.so`, or old app bundled in the build.
+A new Android app with a premium dark interface, Home, searchable Serials, paginated Latest episodes, and About. The app opens directly to its dashboard, with no original APK, Play Store redirect, Firebase update check or compiled Flutter files.
 
-The old APK did not include editable source or a documented content API. This new app does **not** include the old episodes, backend, accounts or functional catalogue; Discover and Watchlist clearly show their empty states. To make those features work, supply a permitted content API and specifications.
+## Content service
 
-**Build:** Actions → Build Towfik Serial Platform APK → Run workflow. Download the `Towfik-Serial-Platform-APK` artifact. You can also run `gradle :app:assembleRelease` with Android SDK and JDK 17 installed.
+The original compiled APK referenced `https://scopebd.com/public/ibs_v3/v` with `/serials` and `/videos` routes. This app makes read-only requests to those routes. **On inspection, both endpoints returned HTTP 404**, so the app cannot currently load the catalogue. It displays an error and retry option rather than fake serials. Provide a working authorized API URL and sample JSON responses to connect all serials and episodes reliably. Episode playback is not implemented without a documented playback URL and content rights. The app does not transfer accounts or data from the old APK.
 
-The new package ID is `com.towfik.serialplatform`, so it installs separately from the old app and cannot update it or import its data. For updates of *this* new app across workflow runs, set repository secrets `APK_KEYSTORE_BASE64`, `APK_KEYSTORE_PASSWORD`, `APK_KEY_ALIAS`, and `APK_KEY_PASSWORD`. Keep a private backup of the signing keystore. Without these secrets, a temporary signing key is generated on each run, making each APK installable but unable to update a previous build.
+## Build
+
+Actions → Build Towfik Serial Platform APK → download the `Towfik-Serial-Platform-APK` artifact. For update-compatible future releases configure repository secrets `APK_KEYSTORE_BASE64`, `APK_KEYSTORE_PASSWORD`, `APK_KEY_ALIAS`, `APK_KEY_PASSWORD` and keep your keystore private. Without these, each build uses a new temporary signing key, and cannot update the last build. Package ID: `com.towfik.serialplatform` (separate from the old app).
