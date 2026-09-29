@@ -1,0 +1,97 @@
+name: Build Towfik Serial Platform APK
+
+# Builds the rebranded APK from the bundled source APK.
+# Run manually from the Actions tab ("Run workflow"), or it runs
+# automatically on every push to this branch.
+# The finished, signed APK is attached to a GitHub Release and to the
+# workflow run artifacts.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/01a0ed87-moviemaker
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      APP_ZIP: com.dazzleo.indianbnserial v1.0.1_antisplit.zip
+      KS_PASS: towfik2025key
+      KEY_PASS: towfik2025key
+      APK_NAME: TowfikSerialPlatform-v1.0.1.apk
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download apktool 2.9.3
+        run: |
+          curl -sSL -o apktool.jar \
+            "https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar"
+          java -jar apktool.jar --version
+
+      - name: Unpack source APK
+        run: |
+          mkdir -p work
+          cp "$APP_ZIP" work/base.apk
+          ls -la work/
+
+      - name: Decode APK (apktool)
+        run: java -jar apktool.jar d -f -o work/decoded work/base.apk
+
+      - name: Apply rebrand patch (name / logo / UI strings)
+        run: python3 patcher/rebrand.py work/decoded brand/apk
+
+      - name: Rebuild APK (apktool)
+        run: java -jar apktool.jar b work/decoded -o work/towfik-unsigned.apk
+
+      - name: Zip-align
+        run: |
+          BT="$(ls -d "${ANDROID_HOME}/build-tools/"*/ | sort -V | tail -1)"
+          echo "build-tools: ${BT}"
+          "${BT%/}/zipalign" -p -f 4 work/towfik-unsigned.apk work/towfik-aligned.apk
+
+      - name: Sign APK
+        run: |
+          BT="$(ls -d "${ANDROID_HOME}/build-tools/"*/ | sort -V | tail -1)"
+          BT="${BT%/}"
+          "${BT}/apksigner" sign \
+            --ks signing/towfik-release.jks \
+            --ks-pass "pass:${KS_PASS}" \
+            --key-pass "pass:${KEY_PASS}" \
+            --ks-key-alias towfik \
+            --out "${APK_NAME}" work/towfik-aligned.apk
+          "${BT}/apksigner" verify --verbose "${APK_NAME}" | head -8
+          ls -la "${APK_NAME}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TowfikSerialPlatform-APK
+          path: ${{ env.APK_NAME }}
+          if-no-files-found: error
+
+      - name: Attach APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: towfik-build-${{ github.run_number }}
+        run: |
+          gh release create "${TAG}" \
+            --title "Towfik Serial Platform - build ${GITHUB_RUN_NUMBER}" \
+            --notes "Signed rebranded APK (Towfik Serial Platform).
+          - App name: Towfik Serial Platform
+          - Package: com.towfikserial.platform
+          - Version: 1.0.1 (versionCode 3)
+          Install: download the APK and allow 'Install unknown apps'." \
+            "${APK_NAME}"
