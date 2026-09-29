@@ -1,10 +1,10 @@
-name: Build branded APK
+name: Build Towfik Serial Platform APK
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'branding/**'
-      - 'scripts/brand.py'
+      - 'app/**'
+      - '*.gradle'
       - '.github/workflows/build-apk.yml'
 
 jobs:
@@ -18,18 +18,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install APK tooling
-        run: |
-          curl -fL --retry 4 -o /tmp/apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-      - name: Decode, brand, and rebuild
-        run: |
-          set -euo pipefail
-          input=$(find . -maxdepth 1 -name '*_antisplit.zip' -print -quit)
-          test -n "$input"
-          java -jar /tmp/apktool.jar d -f -o /tmp/decoded "$input"
-          python3 scripts/brand.py /tmp/decoded
-          java -jar /tmp/apktool.jar b /tmp/decoded -o /tmp/unsigned.apk
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile Android app
+        run: gradle :app:assembleRelease --no-daemon
       - name: Sign and verify APK
         env:
           KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
@@ -39,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
-            echo 'WARNING: No signing secrets configured; generating a temporary key. This APK cannot update another build or the original APK.'
+            echo 'WARNING: Temporary signing key; configure the four APK_* secrets for update-compatible future builds.'
             KEYSTORE_PASSWORD=temporary-build-only
             KEY_PASSWORD=temporary-build-only
             KEY_ALIAS=temporary
@@ -48,7 +41,7 @@ jobs:
             printf '%s' "$KEYSTORE_BASE64" | base64 -d > /tmp/signing.jks
           fi
           build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          "$build_tools/zipalign" -f -p 4 /tmp/unsigned.apk /tmp/aligned.apk
+          "$build_tools/zipalign" -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk /tmp/aligned.apk
           "$build_tools/apksigner" sign --ks /tmp/signing.jks --ks-key-alias "$KEY_ALIAS" --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD --out Towfik-Serial-Platform.apk /tmp/aligned.apk
           "$build_tools/apksigner" verify --verbose Towfik-Serial-Platform.apk
       - uses: actions/upload-artifact@v4
